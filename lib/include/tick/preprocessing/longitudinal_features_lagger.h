@@ -17,11 +17,11 @@ class LongitudinalFeaturesLagger {
   SArrayULongPtr n_lags;
   ulong n_features;
   ulong n_lagged_features;
-  SArrayULongPtr col_offset;
+  SArrayULongPtr col_offset = nullptr;
 
  public:
   // This exists soley for cereal/swig
-  LongitudinalFeaturesLagger(): LongitudinalFeaturesLagger(0, nullptr) {};
+  LongitudinalFeaturesLagger(){};
 
   LongitudinalFeaturesLagger(ulong n_intervals,
                              SArrayULongPtr n_lags);

@@ -9,12 +9,11 @@
 
 LongitudinalFeaturesLagger::LongitudinalFeaturesLagger(
     ulong n_intervals,
-    SArrayULongPtr n_lags)
+    SArrayULongPtr _n_lags)
     : n_intervals(n_intervals),
-      n_lags(n_lags),
-      n_features(n_lags->size()),
-      n_lagged_features(n_features + n_lags->sum()),
-      col_offset(nullptr){
+      n_lags(_n_lags),
+      n_features(_n_lags->size()),
+      n_lagged_features(_n_lags->size() + _n_lags->sum()){
   if (n_lags != nullptr) compute_col_offset(n_lags);
 };
 
