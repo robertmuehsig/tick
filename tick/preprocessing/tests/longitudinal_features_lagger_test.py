@@ -36,17 +36,18 @@ class Test(unittest.TestCase):
         feat_prod = [f.todense() for f in feat_prod]
         np.testing.assert_equal(feat_prod, self.expected_output)
 
-    # def test_parallelization(self):
-    #     feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=1) \
-    #         .fit_transform(self.sparse_features, censoring=self.censoring)
-    #     p_feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=3)\
-    #         .fit_transform(self.sparse_features, censoring=self.censoring)
+    def test_parallelization_sparse(self):
+        feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=1) \
+            .fit_transform(self.sparse_features, censoring=self.censoring)
+        p_feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=3)\
+            .fit_transform(self.sparse_features, censoring=self.censoring)
     #
-    # def test_parallelization(self):
-    #     feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=1) \
-    #         .fit_transform(self.features, censoring=self.censoring)
-    #     p_feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=1)\
-    #         .fit_transform(self.features, censoring=self.censoring)
+    def test_parallelization_dense(self):
+        # feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=1) \
+        #     .fit_transform(self.features, censoring=self.censoring)
+        p_feat_prod, _, _ = LongitudinalFeaturesLagger(n_lags=self.n_lags, n_jobs=4)\
+            .fit_transform(self.features, censoring=self.censoring)
+        np.testing.assert_equal(feat_prod, p_feat_prod)
 
 
 if __name__ == "__main__":

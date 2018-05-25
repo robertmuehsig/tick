@@ -48,8 +48,8 @@ class LongitudinalFeaturesLagger {
 //    ar(cereal::make_nvp("col_offset", temp_col_offset));
 
     n_lags = temp_n_lags.as_sarray_ptr();
-    if (n_lags != nullptr) compute_col_offset(n_lags);
-    //    col_offset = temp_col_offset.as_sarray_ptr();
+//    if (n_lags != nullptr) compute_col_offset(n_lags);
+    col_offset = temp_col_offset.as_sarray_ptr();
   }
 
 
@@ -59,7 +59,7 @@ class LongitudinalFeaturesLagger {
     ar(CEREAL_NVP(n_features));
     ar(CEREAL_NVP(n_lagged_features));
     ar(cereal::make_nvp("n_lags", *n_lags));
-//    ar(cereal::make_nvp("col_offset", *col_offset));
+    ar(cereal::make_nvp("col_offset", *col_offset));
   }
 };
 

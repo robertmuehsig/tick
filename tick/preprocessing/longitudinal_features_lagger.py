@@ -8,6 +8,7 @@ from .build.preprocessing import LongitudinalFeaturesLagger\
 from .utils import check_longitudinal_features_consistency,\
     check_censoring_consistency
 from multiprocessing.pool import Pool
+from copy import deepcopy
 
 
 class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
@@ -139,7 +140,7 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         self._set("_n_intervals", n_intervals)
         self._set("_n_output_features", int((self.n_lags + 1).sum()))
         self._set("_cpp_preprocessor",
-                  _LongitudinalFeaturesLagger(features, self.n_lags))
+                  _LongitudinalFeaturesLagger(self._n_intervals, self.n_lags))
         self._set("_fitted", True)
 
         return self
@@ -175,41 +176,28 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         base_shape = (self._n_intervals, self._n_init_features)
         features = check_longitudinal_features_consistency(
             features, base_shape, "float64")
-        if sps.issparse(features[0]):
-            if self.n_jobs > 1:
-                with Pool(self.n_jobs) as pool:
-                    X_with_lags = pool.starmap(self._sparse_lagger, zip(features, censoring))
-                    pool.start()
-                    pool.join()
-            else:
-                X_with_lags = [
-                    self._sparse_lagger(x, int(censoring[i]))
-                    for i, x in enumerate(features)
-                ]
-                # TODO: Don't get why int() is required here as censoring_i is uint64
+
+        callback = self._sparse_lagger if sps.issparse(features[0]) \
+            else self._dense_lagger
+
+        if self.n_jobs > 1:
+            with Pool(self.n_jobs) as pool:
+                X_with_lags = pool.starmap(callback, zip(features, censoring))
         else:
-            if self.n_jobs > 1:
-                with Pool(self.n_jobs) as pool:
-                    X_with_lags = pool.starmap(self._dense_lagger, zip(features, censoring))
-                    pool.start()
-                    pool.join()
-            else:
-                X_with_lags = [
-                    self._dense_lagger(x, int(censoring[i]))
-                    for i, x in enumerate(features)
-                ]
+            X_with_lags = [callback(feat, c)
+                           for feat, c in zip(features, censoring)]
 
         return X_with_lags, labels, censoring
 
     def _dense_lagger(self, feature_matrix, censoring_i):
+        pp = deepcopy(self._cpp_preprocessor)
         output = np.zeros((self._n_intervals, self._n_output_features),
                           dtype="float64")
-        self._cpp_preprocessor.dense_lag_preprocessor(feature_matrix, output,
-                                                      censoring_i)
+        pp.dense_lag_preprocessor(feature_matrix, output, int(censoring_i))
         return output
 
     def _sparse_lagger(self, feature_matrix, censoring_i):
-        pp = self._cpp_preprocessor
+        pp = deepcopy(self._cpp_preprocessor)
         coo = feature_matrix.tocoo()
         estimated_nnz = coo.nnz * int((self.n_lags + 1).sum())
         out_row = np.zeros((estimated_nnz,), dtype="uint64")
