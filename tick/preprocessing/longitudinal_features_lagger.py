@@ -7,6 +7,7 @@ from .build.preprocessing import LongitudinalFeaturesLagger\
     as _LongitudinalFeaturesLagger
 from .utils import check_longitudinal_features_consistency,\
     check_censoring_consistency
+from multiprocessing.pool import Pool
 
 
 class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
@@ -83,7 +84,7 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         }
     }
 
-    def __init__(self, n_lags, n_jobs=-1):
+    def __init__(self, n_lags, n_jobs=1):
         LongitudinalPreprocessor.__init__(self, n_jobs=n_jobs)
         if not isinstance(n_lags, np.ndarray) or n_lags.dtype != 'uint64':
             raise ValueError(
@@ -166,7 +167,6 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         output : `[numpy.ndarrays]`  or `[csr_matrices]`, shape=(n_intervals, n_features)
             The list of features matrices with added lagged features.
         """
-
         n_samples = len(features)
         if censoring is None:
             censoring = np.full((n_samples,), self._n_intervals,
@@ -176,16 +176,28 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         features = check_longitudinal_features_consistency(
             features, base_shape, "float64")
         if sps.issparse(features[0]):
-            X_with_lags = [
-                self._sparse_lagger(x, int(censoring[i]))
-                for i, x in enumerate(features)
-            ]
-            # TODO: Don't get why int() is required here as censoring_i is uint64
+            if self.n_jobs > 1:
+                with Pool(self.n_jobs) as pool:
+                    X_with_lags = pool.starmap(self._sparse_lagger, zip(features, censoring))
+                    pool.start()
+                    pool.join()
+            else:
+                X_with_lags = [
+                    self._sparse_lagger(x, int(censoring[i]))
+                    for i, x in enumerate(features)
+                ]
+                # TODO: Don't get why int() is required here as censoring_i is uint64
         else:
-            X_with_lags = [
-                self._dense_lagger(x, int(censoring[i]))
-                for i, x in enumerate(features)
-            ]
+            if self.n_jobs > 1:
+                with Pool(self.n_jobs) as pool:
+                    X_with_lags = pool.starmap(self._dense_lagger, zip(features, censoring))
+                    pool.start()
+                    pool.join()
+            else:
+                X_with_lags = [
+                    self._dense_lagger(x, int(censoring[i]))
+                    for i, x in enumerate(features)
+                ]
 
         return X_with_lags, labels, censoring
 
@@ -197,14 +209,15 @@ class LongitudinalFeaturesLagger(LongitudinalPreprocessor):
         return output
 
     def _sparse_lagger(self, feature_matrix, censoring_i):
+        pp = self._cpp_preprocessor
         coo = feature_matrix.tocoo()
         estimated_nnz = coo.nnz * int((self.n_lags + 1).sum())
         out_row = np.zeros((estimated_nnz,), dtype="uint64")
         out_col = np.zeros((estimated_nnz,), dtype="uint64")
         out_data = np.zeros((estimated_nnz,), dtype="float64")
-        self._cpp_preprocessor.sparse_lag_preprocessor(
+        pp.sparse_lag_preprocessor(
             coo.row.astype("uint64"), coo.col.astype("uint64"), coo.data,
-            out_row, out_col, out_data, censoring_i)
+            out_row, out_col, out_data, int(censoring_i))
         return sps.csr_matrix((out_data, (out_row, out_col)),
                               shape=(self._n_intervals,
                                      self._n_output_features))

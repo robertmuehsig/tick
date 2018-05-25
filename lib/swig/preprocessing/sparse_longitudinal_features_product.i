@@ -4,6 +4,8 @@
 #include "tick/preprocessing/sparse_longitudinal_features_product.h"
 %}
 
+%include serialization.i
+
 class SparseLongitudinalFeaturesProduct {
 
   public:
