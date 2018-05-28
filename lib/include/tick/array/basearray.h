@@ -5,6 +5,7 @@
 
 #include "abstractarray1d2d.h"
 
+
 template <typename T>
 class Array;
 
@@ -31,6 +32,7 @@ class BaseArray : public AbstractArray1d2d<T> {
   using AbstractArray1d2d<T>::is_dense;
   using AbstractArray1d2d<T>::is_sparse;
   using AbstractArray1d2d<T>::init_to_zero;
+  using AbstractArray1d2d<T>::get_data_index;
 
   //! @brief Main constructor : builds an empty array
   //! \param flag_dense If true then creates a dense array otherwise it is
@@ -93,7 +95,13 @@ class BaseArray : public AbstractArray1d2d<T> {
 
   //! @brief Returns the scalar product of the array with `array`
   // defined in file dot.h
-  T dot(const BaseArray<T> &array) const;
+  template <typename K = T>
+  typename std::enable_if<!std::is_same<K, std::atomic<T>>::value, T>::type
+  dot(const BaseArray<K> &array) const;
+
+  template <typename K = T>
+  typename std::enable_if<std::is_same<K, std::atomic<T>>::value, T>::type
+  dot(const BaseArray<K> &array) const;
 
   //! @brief Creates a dense Array from an BaseArray
   //! In terms of allocation owner, there are two cases
@@ -111,6 +119,15 @@ class BaseArray : public AbstractArray1d2d<T> {
 
  private:
   std::string type() const { return (is_dense() ? "Array" : "SparseArray"); }
+
+ public:
+  template <class K = T>
+  typename std::enable_if<std::is_same<T, std::atomic<K>>::value>::type
+  set_data_index(size_t index, K value);
+
+  template <class K = T>
+  typename std::enable_if<!std::is_same<T, std::atomic<K>>::value || std::is_same<T, K>::value>::type
+  set_data_index(size_t index, K value);
 };
 
 // @brief Prints the array
@@ -220,5 +237,20 @@ typedef std::vector<BaseArrayDoubleList1D> BaseArrayDoubleList2D;
 /**
  * @}
  */
+
+template <class T>
+template <class K>
+typename std::enable_if<std::is_same<T, std::atomic<K>>::value>::type
+BaseArray<T>::set_data_index(size_t index, K value) {
+  _data[index].store(value);
+}
+
+template <class T>
+template <class K>
+typename std::enable_if<!std::is_same<T, std::atomic<K>>::value || std::is_same<T, K>::value>::type
+BaseArray<T>::set_data_index(size_t index, K value) {
+  _data[index] = value;
+}
+
 
 #endif  // LIB_INCLUDE_TICK_ARRAY_BASEARRAY_H_

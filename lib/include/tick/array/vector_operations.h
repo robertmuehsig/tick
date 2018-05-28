@@ -5,6 +5,10 @@
 
 #include <numeric>
 
+#include <atomic>
+#include <algorithm>
+#include <type_traits>
+
 #include "promote.h"
 #include "tick/base/defs.h"
 
@@ -12,45 +16,50 @@ namespace tick {
 namespace detail {
 
 template <typename T>
-struct vector_operations_unoptimized {
-  T dot(const ulong n, const T *x, const T *y) const {
-    T result{0};
+struct DLL_PUBLIC vector_operations_unoptimized {
+  template <typename K = T>
+  tick::promote_t<K> sum(const ulong n, const T *x) const;
 
-    for (ulong i = 0; i < n; ++i) {
-      result += x[i] * y[i];
-    }
+  template <typename K = T>
+  typename std::enable_if<std::is_same<T, std::atomic<K>>::value, T>::type
+  dot(const ulong n, const T *x, const K *y) const;
 
-    return result;
-  }
+  template <typename K = T>
+  typename std::enable_if<!std::is_same<T, std::atomic<K>>::value, T>::type
+  dot(const ulong n, const T *x, const K *y) const;
 
-  tick::promote_t<T> sum(const ulong n, const T *x) const {
-    return std::accumulate(x, x + n, tick::promote_t<T>{0});
-  }
 
-  void scale(const ulong n, const T alpha, T *x) const {
-    for (ulong i = 0; i < n; ++i) {
-      x[i] *= alpha;
-    }
-  }
+  template <typename K = T>
+  typename std::enable_if<std::is_same<T, std::atomic<K>>::value>::type
+  scale(const ulong n, const K alpha, T *x) const;
 
-  void set(const ulong n, const T alpha, T *x) const {
-    for (ulong i = 0; i < n; ++i) {
-      x[i] = alpha;
-    }
-  }
+  template <typename K = T>
+  typename std::enable_if<!std::is_same<T, std::atomic<K>>::value>::type
+  scale(const ulong n, const K alpha, T *x) const;
 
-  void mult_incr(const ulong n, const T alpha, const T *x, T *y) const {
-    for (ulong i = 0; i < n; ++i) {
-      y[i] += alpha * x[i];
-    }
-  }
+
+  template <typename K = T>
+  typename std::enable_if<std::is_same<T, std::atomic<K>>::value>::type
+  set(const ulong n, const K alpha, T *x) const;
+
+  template <typename K = T>
+  typename std::enable_if<!std::is_same<T, std::atomic<K>>::value>::type
+  set(const ulong n, const K alpha, T *x) const;
+
+
+  template <typename K = T>
+  typename std::enable_if<std::is_same<T, std::atomic<K>>::value>::type
+  mult_incr(const uint64_t n, const K alpha, const T *x, T *y) const;
+
+  template <typename K = T>
+  typename std::enable_if<!std::is_same<T, std::atomic<K>>::value>::type
+  mult_incr(const uint64_t n, const K alpha, const T *x, T *y) const;
 };
 
 }  // namespace detail
 }  // namespace tick
 
-// Detect if a blas distribution is available
-#if !defined(TICK_USE_BLAS) && !defined(TICK_USE_MKL)
+#if !defined(TICK_CBLAS_AVAILABLE)
 
 namespace tick {
 
@@ -79,7 +88,7 @@ extern "C" {
 #include <cblas.h>
 }
 
-#endif
+#endif  // defined(__APPLE__)
 
 namespace tick {
 
@@ -90,12 +99,14 @@ struct vector_operations_cblas : vector_operations_unoptimized<T> {};
 
 template <typename T>
 struct vector_operations_cblas_base {
+  template <typename K = T>
   promote_t<T> sum(const ulong n, const T *x) const {
-    return vector_operations_unoptimized<T>{}.sum(n, x);
+    return vector_operations_unoptimized<T>{}.template sum<K>(n, x);
   }
 
-  void set(const ulong n, const T alpha, T *x) const {
-    return vector_operations_unoptimized<T>{}.set(n, alpha, x);
+  template <typename K>
+  void set(const ulong n, const K alpha, T *x) const {
+    return vector_operations_unoptimized<T>{}.template set<K>(n, alpha, x);
   }
 };
 
@@ -106,21 +117,20 @@ struct vector_operations_cblas<float> final
     return cblas_sasum(n, x, 1);
   }
 
-  float dot(const ulong n, const float *x, const float *y) const {
-    return cblas_sdot(n, x, 1, y, 1);
-  }
+  template <typename K>  // see cblas.cpp
+  float dot(const ulong n, const float *x, const K *y) const;
 
-  void scale(const ulong n, const float alpha, float *x) const {
+  template <typename K>
+  void scale(const ulong n, const K alpha, float *x) const {
     cblas_sscal(n, alpha, x, 1);
   }
 
-  void mult_incr(const ulong n, const float alpha, const float *x,
-                 float *y) const {
-    cblas_saxpy(n, alpha, x, 1, y, 1);
-  }
+  template <typename K>  // see cblas.cpp
+  void mult_incr(const ulong n, const K alpha, const float *x, float *y) const;
 
 #if defined(TICK_CATLAS_AVAILABLE)
-  void set(const ulong n, const float alpha, float *x) const override {
+  template <typename K>
+  void set(const ulong n, const K alpha, float *x) const override {
     catlas_sset(n, alpha, x, 1);
   }
 #endif
@@ -133,21 +143,21 @@ struct vector_operations_cblas<double> final
     return cblas_dasum(n, x, 1);
   }
 
-  double dot(const ulong n, const double *x, const double *y) const {
-    return cblas_ddot(n, x, 1, y, 1);
-  }
+  template <typename K>  // see cblas.cpp
+  double dot(const ulong n, const double *x, const K *y) const;
 
-  void scale(const ulong n, const double alpha, double *x) const {
+  template <typename K>
+  void scale(const ulong n, const K alpha, double *x) const {
     cblas_dscal(n, alpha, x, 1);
   }
 
-  void mult_incr(const ulong n, const double alpha, const double *x,
-                 double *y) const {
-    cblas_daxpy(n, alpha, x, 1, y, 1);
-  }
+  template <typename K>  // see cblas.cpp
+  void mult_incr(const ulong n, const K alpha, const double *x,
+                 double *y) const;
 
 #if defined(TICK_CATLAS_AVAILABLE)
-  void set(const ulong n, const double alpha, double *x) const {
+  template <typename K>
+  void set(const ulong n, const K alpha, double *x) const {
     catlas_dset(n, alpha, x, 1);
   }
 #endif
@@ -161,5 +171,8 @@ using vector_operations = detail::vector_operations_cblas<T>;
 }  // namespace tick
 
 #endif  // if !defined(TICK_CBLAS_AVAILABLE)
+
+
+#include "tick/array/vector/un_optimized.hpp"
 
 #endif  // LIB_INCLUDE_TICK_ARRAY_VECTOR_OPERATIONS_H_

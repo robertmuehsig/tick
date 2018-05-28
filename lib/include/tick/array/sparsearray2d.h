@@ -222,15 +222,16 @@ void load(Archive &ar, SparseArray2d<T> &s) {
  * @{
  */
 
-typedef SparseArray2d<double> SparseArrayDouble2d;
 typedef SparseArray2d<float> SparseArrayFloat2d;
+typedef SparseArray2d<double> SparseArrayDouble2d;
 typedef SparseArray2d<int> SparseArrayInt2d;
 typedef SparseArray2d<std::uint32_t> SparseArrayUInt2d;
 typedef SparseArray2d<std::int16_t> SparseArrayShort2d;
 typedef SparseArray2d<std::uint16_t> SparseArrayUShort2d;
 typedef SparseArray2d<std::int64_t> SparseArrayLong2d;
 typedef SparseArray2d<ulong> SparseArrayULong2d;
-
+typedef SparseArray2d<std::atomic<float>> SparseArrayAtomicFloat2d;
+typedef SparseArray2d<std::atomic<double>> SparseArrayAtomicDouble2d;
 /**
  * @}
  */
